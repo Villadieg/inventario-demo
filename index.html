@@ -30,8 +30,9 @@
   --demo-strip: #0b1d38;
 }
 html, body { background: #ffffff; color: var(--brand-text); }
-body { font-family: "Instrument Sans", ui-sans-serif, system-ui, sans-serif; overflow-x: hidden; -webkit-font-smoothing: antialiased; }
-#app { width: 100%; max-width: 100%; overflow-x: hidden; }
+html, body { overflow-x: clip; }
+body { font-family: "Instrument Sans", ui-sans-serif, system-ui, sans-serif; -webkit-font-smoothing: antialiased; }
+#app { width: 100%; max-width: 100%; overflow-x: clip; }
 [v-cloak] { display: none; }
 .svg-icon { display: inline-block; height: 1em; width: auto; vertical-align: -0.125em; flex-shrink: 0; overflow: visible; }
 .tnum { font-variant-numeric: tabular-nums; }
@@ -65,6 +66,20 @@ button:disabled { opacity: .5; cursor: not-allowed; }
 .action-btn-success { color: #059669; } .action-btn-success:hover { color: #064e3b; background: #ecfdf5; }
 
 .form-input { width: 100%; border-radius: .5rem; padding: .375rem .625rem; font-size: .875rem; line-height: 1.25; border: 1px solid var(--brand-line); background: #fff; color: var(--brand-text); min-height: 2.2rem; transition: box-shadow .15s; }
+select.form-input, .swal2-select { appearance: none; -webkit-appearance: none; padding-right: 2.1rem; cursor: pointer; text-overflow: ellipsis;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='%2364748b'%3E%3Cpath d='M5.3 7.3a1 1 0 0 1 1.4 0L10 10.6l3.3-3.3a1 1 0 1 1 1.4 1.4l-4 4a1 1 0 0 1-1.4 0l-4-4a1 1 0 0 1 0-1.4z'/%3E%3C/svg%3E");
+  background-repeat: no-repeat; background-position: right .6rem center; background-size: 1.05rem; }
+select.form-input:hover:not(:disabled) { border-color: #60a5fa; }
+.sel-pop { position: fixed; z-index: 1000; background: #fff; border: 1px solid #dbe4f0; border-radius: .85rem; padding: .3rem; box-shadow: 0 20px 45px rgba(15,23,42,.18), 0 2px 6px rgba(15,23,42,.06); overflow-y: auto; overscroll-behavior: contain; font-family: "Instrument Sans", ui-sans-serif, system-ui, sans-serif; animation: sel-in .12s ease-out; }
+@keyframes sel-in { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: none; } }
+.sel-opt { display: flex; align-items: center; justify-content: space-between; gap: .75rem; width: 100%; text-align: left; padding: .55rem .7rem; border-radius: .55rem; font-size: .875rem; line-height: 1.25; color: #0f172a; cursor: pointer; }
+.sel-opt:hover, .sel-opt.kb { background: #eff6ff; }
+.sel-opt.on { background: #112a4e; color: #fff; font-weight: 600; }
+.sel-opt.on.kb, .sel-opt.on:hover { background: #173a6f; }
+.sel-opt[aria-disabled="true"] { color: #94a3b8; cursor: not-allowed; background: none; }
+.sel-group { padding: .55rem .7rem .25rem; font-size: .68rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: #64748b; }
+.sel-check { flex-shrink: 0; width: .9rem; height: .9rem; }
+@media (max-width: 640px) { .sel-opt { padding: .7rem .75rem; font-size: 1rem; } }
 .form-input:focus { outline: none; box-shadow: 0 0 0 2px rgba(63,111,184,.6); }
 .form-input:disabled { background: #f1f5f9; color: #94a3b8; }
 .form-label { display: block; font-size: .875rem; font-weight: 600; margin-bottom: .25rem; color: var(--brand-muted); }
@@ -814,7 +829,7 @@ const MovBadge = {
 
 const ProductThumb = {
   props: { product: Object, size: { type: String, default: 'h-12 w-12' } },
-  computed: { src() { return this.product ? sneakerImg(this.product) : ''; } },
+  computed: { src() { return this.product ? sneakerImg(this.product, true) : ''; } },
   template: `<img v-if="src" :src="src" :alt="product.name" class="rounded border border-[#93c5fd] bg-gray-50 object-cover" :class="size"/><span v-else class="inline-flex items-center justify-center rounded border border-slate-200 bg-slate-50 text-[10px] text-slate-400" :class="size">Sin imagen</span>`,
 };
 
@@ -2723,6 +2738,61 @@ app.mixin({
 Object.entries({ Icon, Modal, Pager, ProductPicker, MovBadge, ProductThumb, Blobs, Donut, LoginPage, OfflineIndicator, NotificationBell, Shell, HistoryTabs, TransferNormal, TransferExhibition, BodegaSolicitudes })
   .forEach(([name, c]) => app.component(name, c));
 app.config.warnHandler = () => {};
+
+(function enhanceSelects() {
+  let pop = null; let current = null; let kb = -1; let openedAt = 0;
+  const close = () => { if (pop) { pop.remove(); pop = null; } if (current) { current.removeAttribute('aria-expanded'); current = null; } kb = -1; };
+  const items = () => (pop ? [...pop.querySelectorAll('.sel-opt:not([aria-disabled="true"])')] : []);
+  const mark = (i) => { const l = items(); l.forEach((el) => el.classList.remove('kb')); if (!l.length) return; kb = (i + l.length) % l.length; l[kb].classList.add('kb'); l[kb].scrollIntoView({ block: 'nearest' }); };
+  const choose = (sel, value) => { if (sel.value !== value) { sel.value = value; sel.dispatchEvent(new Event('input', { bubbles: true })); sel.dispatchEvent(new Event('change', { bubbles: true })); } close(); sel.focus({ preventScroll: true }); };
+  const CHECK = '<svg class="sel-check" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path d="M16.7 5.3a1 1 0 0 1 0 1.4l-8 8a1 1 0 0 1-1.4 0l-4-4a1 1 0 1 1 1.4-1.4L8 12.6l7.3-7.3a1 1 0 0 1 1.4 0z"/></svg>';
+  function open(sel) {
+    close(); current = sel; openedAt = Date.now(); sel.setAttribute('aria-expanded', 'true');
+    pop = document.createElement('div'); pop.className = 'sel-pop'; pop.setAttribute('role', 'listbox');
+    const add = (opt) => {
+      const b = document.createElement('div'); b.className = 'sel-opt' + (opt.selected ? ' on' : ''); b.setAttribute('role', 'option'); b.dataset.value = opt.value;
+      if (opt.disabled) b.setAttribute('aria-disabled', 'true');
+      const t = document.createElement('span'); t.textContent = opt.textContent; b.appendChild(t);
+      if (opt.selected) b.insertAdjacentHTML('beforeend', CHECK);
+      b.addEventListener('mousedown', (e) => e.preventDefault());
+      b.addEventListener('click', () => { if (!opt.disabled) choose(sel, opt.value); });
+      pop.appendChild(b);
+    };
+    [...sel.children].forEach((c) => {
+      if (c.tagName === 'OPTGROUP') { const g = document.createElement('div'); g.className = 'sel-group'; g.textContent = c.label.replace(/[─-]/g, '').trim(); pop.appendChild(g); [...c.children].forEach(add); }
+      else if (c.tagName === 'OPTION') add(c);
+    });
+    document.body.appendChild(pop);
+    const r = sel.getBoundingClientRect(); const vw = window.innerWidth; const vh = window.innerHeight;
+    const width = Math.min(Math.max(r.width, 200), vw - 16);
+    const below = vh - r.bottom - 12; const above = r.top - 12;
+    const up = below < 220 && above > below;
+    pop.style.width = width + 'px'; pop.style.maxHeight = Math.max(160, Math.min(320, up ? above : below)) + 'px';
+    pop.style.left = Math.min(Math.max(8, r.left), vw - width - 8) + 'px';
+    if (up) pop.style.bottom = (vh - r.top + 6) + 'px'; else pop.style.top = (r.bottom + 6) + 'px';
+    const on = pop.querySelector('.sel-opt.on'); if (on) { on.scrollIntoView({ block: 'nearest' }); kb = items().indexOf(on); }
+  }
+  document.addEventListener('mousedown', (e) => {
+    const sel = e.target.closest && e.target.closest('select');
+    if (sel && !sel.multiple && !sel.disabled) { e.preventDefault(); if (current === sel) close(); else { sel.focus({ preventScroll: true }); open(sel); } return; }
+    if (pop && !pop.contains(e.target)) close();
+  }, true);
+  document.addEventListener('keydown', (e) => {
+    const sel = e.target.tagName === 'SELECT' ? e.target : null;
+    if (pop && current) {
+      const l = items();
+      if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); close(); }
+      else if (e.key === 'ArrowDown') { e.preventDefault(); mark(kb + 1); }
+      else if (e.key === 'ArrowUp') { e.preventDefault(); mark(kb - 1); }
+      else if ((e.key === 'Enter' || e.key === ' ') && kb >= 0) { e.preventDefault(); choose(current, l[kb].dataset.value); }
+      else if (e.key === 'Tab') close();
+      return;
+    }
+    if (sel && !sel.multiple && (e.key === ' ' || e.key === 'Enter' || (e.altKey && e.key === 'ArrowDown'))) { e.preventDefault(); open(sel); }
+  }, true);
+  window.addEventListener('scroll', (e) => { if (pop && !pop.contains(e.target) && Date.now() - openedAt > 400) close(); }, true);
+  window.addEventListener('resize', () => { if (Date.now() - openedAt > 400) close(); });
+})();
 app.mount('#app');
 </script>
 </body>
